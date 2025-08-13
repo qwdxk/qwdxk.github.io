@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Adventure | Arcade Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4D7CFE',
+                        secondary: '#FF6B6B',
+                        accent: '#FFD166',
+                        dark: '#2A2D34',
+                        light: '#F7F9FC'
+                    },
+                    fontFamily: {
+                        pixel: ['"Press Start 2P"', 'system-ui', 'sans-serif'],
+                        inter: ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .pixel-art {
+                image-rendering: pixelated;
+                image-rendering: crisp-edges;
+            }
+            .game-shadow {
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+            }
+            .btn-bounce {
+                transition: transform 0.2s;
+            }
+            .btn-bounce:hover {
+                transform: translateY(-3px);
+            }
+            .btn-bounce:active {
+                transform: translateY(1px);
+            }
+        }
+    </style>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Press+Start+2P&display=swap');
+        
+        body {
+            overflow-x: hidden;
+        }
+        
+        canvas {
+            display: block;
+            margin: 0 auto;
+        }
+        
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+            100% { transform: translateY(0px); }
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .animate-scale {
+            animation: scale 2s ease-in-out infinite;
+        }
+        
+        @keyframes scale {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-dark to-primary/90 min-h-screen font-inter text-light">
+    <!-- 游戏容器 -->
+    <div class="container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-screen">
+        <!-- 游戏标题 -->
+        <h1 class="text-[clamp(2rem,5vw,3.5rem)] font-pixel text-accent mb-8 tracking-wider text-center animate-pulse-slow">
+            PIXEL <span class="text-secondary">ADVENTURE</span>
+        </h1>
+        
+        <!-- 游戏画布 -->
+        <div class="relative w-full max-w-3xl game-shadow rounded-xl overflow-hidden bg-dark">
+            <!-- 开始界面 -->
+            <div id="start-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-dark z-20">
+                <div class="text-center mb-12 animate-float">
+                    <div class="inline-block p-4 rounded-lg bg-primary/20 mb-6">
+                        <i class="fa fa-gamepad text-accent text-5xl"></i>
+                    </div>
+                    <h2 class="font-pixel text-2xl mb-4 text-light">READY TO PLAY?</h2>
+                    <p class="text-light/80 max-w-md mx-auto mb-8">Collect all the coins and avoid the enemies. Use arrow keys to move your character.</p>
+                </div>
+                
+                <button id="start-button" class="bg-accent hover:bg-accent/90 text-dark font-pixel text-lg px-8 py-4 rounded-lg btn-bounce animate-scale">
+                    START GAME
+                </button>
+                
+                <div class="absolute bottom-6 left-0 right-0 text-center text-light/60 text-sm">
+                    <p>Press SPACE to pause | ESC to exit</p>
+                </div>
+            </div>
+            
+            <!-- 游戏画布 -->
+            <canvas id="game-canvas" class="w-full h-auto pixel-art" width="800" height="500"></canvas>
+            
+            <!-- 游戏暂停界面 -->
+            <div id="pause-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-dark/80 z-10 hidden">
+                <h2 class="font-pixel text-3xl mb-8 text-accent">PAUSED</h2>
+                <button id="resume-button" class="bg-primary hover:bg-primary/90 text-light font-pixel px-6 py-3 rounded-lg mb-4 btn-bounce">
+                    RESUME
+                </button>
+                <button id="restart-button" class="bg-secondary hover:bg-secondary/90 text-light font-pixel px-6 py-3 rounded-lg btn-bounce">
+                    RESTART
+                </button>
+            </div>
+            
+            <!-- 游戏结束界面 -->
+            <div id="game-over-screen" class="absolute inset-0 flex flex-col items-center justify-center bg-dark/90 z-10 hidden">
+                <h2 class="font-pixel text-3xl mb-4 text-secondary">GAME OVER</h2>
+                <p id="final-score" class="text-xl font-semibold mb-8 text-light">Your Score: <span class="text-accent">0</span></p>
+                <button id="play-again-button" class="bg-accent hover:bg-accent/90 text-dark font-pixel px-6 py-3 rounded-lg mb-4 btn-bounce">
+                    PLAY AGAIN
+                </button>
+                <button id="exit-button" class="bg-transparent border border-light/30 hover:bg-light/10 text-light font-pixel px-6 py-3 rounded-lg btn-bounce">
+                    EXIT
+                </button>
+            </div>
+        </div>
+        
+        <!-- 游戏说明 -->
+        <div class="mt-8 w-full max-w-3xl bg-dark/50 backdrop-blur-sm p-6 rounded-xl">
+            <h3 class="font-pixel text-accent mb-4 text-lg">How to Play:</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <div class="flex items-center mb-3">
+                        <div class="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center mr-3">
+                            <i class="fa fa-arrows text-accent"></i>
+                        </div>
+                        <span>Use arrow keys to move your character</span>
+                    </div>
+                    <div class="flex items-center mb-3">
+                        <div class="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center mr-3">
+                            <i class="fa fa-star text-accent"></i>
+                        </div>
+                        <span>Collect all the coins to win</span>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center mb-3">
+                        <div class="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center mr-3">
+                            <i class="fa fa-bomb text-accent"></i>
+                        </div>
+                        <span>Avoid touching the enemies</span>
+                    </div>
+                    <div class="flex items-center mb-3">
+                        <div class="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center mr-3">
+                            <i class="fa fa-clock-o text-accent"></i>
+                        </div>
+                        <span>Complete the level before time runs out</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 页脚 -->
+        <footer class="mt-12 text-center text-light/60 text-sm">
+            <p>© 2025 Pixel Adventure. Created with HTML5 Canvas and Tailwind CSS.</p>
+        </footer>
+    </div>
+
+    <script>
+        // 游戏状态
+        const game = {
+            started: false,
+            paused: false,
+            over: false,
+            score: 0,
+            lives: 3,
+            timeRemaining: 60,
+            lastTime: 0,
+            coinCount: 10
+        };
+        
+        // 游戏元素
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('start-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreElement = document.getElementById('final-score').querySelector('span');
+        
+        // 按钮事件监听
+        document.getElementById('start-button').addEventListener('click', startGame);
+        document.getElementById('resume-button').addEventListener('click', resumeGame);
+        document.getElementById('restart-button').addEventListener('click', restartGame);
+        document.getElementById('play-again-button').addEventListener('click', restartGame);
+        document.getElementById('exit-button').addEventListener('click', exitGame);
+        
+        // 键盘控制
+        const keys = {
+            up: false,
+            down: false,
+            left: false,
+            right: false
+        };
+        
+        // 玩家对象
+        const player = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            width: 32,
+            height: 32,
+            speed: 5,
+            color: '#4D7CFE',
+            // 玩家动画帧
+            frame: 0,
+            frameCount: 4,
+            frameDelay: 8,
+            frameTimer: 0,
+            direction: 0 // 0: 下, 1: 右, 2: 上, 3: 左
+        };
+        
+        // 敌人数组
+        const enemies = [];
+        const enemyCount = 5;
+        
+        // 金币数组
+        const coins = [];
+        
+        // 创建玩家精灵表
+        function createPlayerSprite() {
+            const sprite = document.createElement('canvas');
+            sprite.width = player.width * player.frameCount;
+            sprite.height = player.height * 4; // 四个方向
+            const sctx = sprite.getContext('2d');
+            
+            // 为每个方向创建动画帧
+            for (let dir = 0; dir < 4; dir++) {
+                for (let frame = 0; frame < player.frameCount; frame++) {
+                    const x = frame * player.width;
+                    const y = dir * player.height;
+                    
+                    // 绘制角色主体
+                    sctx.fillStyle = player.color;
+                    sctx.fillRect(x + 8, y + 4, 16, 24);
+                    
+                    // 绘制头部
+                    sctx.fillStyle = '#FFFFFF';
+                    sctx.fillRect(x + 10, y + 4, 12, 8);
+                    
+                    // 绘制眼睛
+                    sctx.fillStyle = '#000000';
+                    sctx.fillRect(x + 13, y + 6, 2, 2);
+                    sctx.fillRect(x + 19, y + 6, 2, 2);
+                    
+                    // 根据方向和帧绘制不同的腿部/手臂
+                    if (dir === 0) { // 下
+                        if (frame === 0 || frame === 2) {
+                            sctx.fillRect(x + 12, y + 28, 4, 4);
+                            sctx.fillRect(x + 16, y + 28, 4, 4);
+                        } else {
+                            sctx.fillRect(x + 8, y + 28, 4, 4);
+                            sctx.fillRect(x + 20, y + 28, 4, 4);
+                        }
+                    } else if (dir === 1) { // 右
+                        if (frame === 0 || frame === 2) {
+                            sctx.fillRect(x + 24, y + 12, 4, 4);
+                            sctx.fillRect(x + 24, y + 16, 4, 4);
+                        } else {
+                            sctx.fillRect(x + 24, y + 8, 4, 4);
+                            sctx.fillRect(x + 24, y + 20, 4, 4);
+                        }
+                    } else if (dir === 2) { // 上
+                        if (frame === 0 || frame === 2) {
+                            sctx.fillRect(x + 12, y, 4, 4);
+                            sctx.fillRect(x + 16, y, 4, 4);
+                        } else {
+                            sctx.fillRect(x + 8, y, 4, 4);
+                            sctx.fillRect(x + 20, y, 4, 4);
+                        }
+                    } else if (dir === 3) { // 左
+                        if (frame === 0 || frame === 2) {
+                            sctx.fillRect(x, y + 12, 4, 4);
+                            sctx.fillRect(x, y + 16, 4, 4);
+                        } else {
+                            sctx.fillRect(x, y + 8, 4, 4);
+                            sctx.fillRect(x, y + 20, 4, 4);
+                        }
+                    }
+                }
+            }
+            
+            return sprite;
+        }
+        
+        const playerSprite = createPlayerSprite();
+        
+        // 创建敌人精灵表
+        function createEnemySprite() {
+            const sprite = document.createElement('canvas');
+            sprite.width = 32;
+            sprite.height = 32;
+            const sctx = sprite.getContext('2d');
+            
+            // 绘制敌人主体
+            sctx.fillStyle = '#FF6B6B';
+            sctx.fillRect(4, 4, 24, 24);
+            
+            // 绘制眼睛
+            sctx.fillStyle = '#FFFFFF';
+            sctx.fillRect(10, 10, 4, 4);
+            sctx.fillRect(18, 10, 4, 4);
+            
+            // 绘制瞳孔
+            sctx.fillStyle = '#000000';
+            sctx.fillRect(12, 12, 2, 2);
+            sctx.fillRect(20, 12, 2, 2);
+            
+            // 绘制牙齿
+            sctx.fillStyle = '#FFFFFF';
+            sctx.fillRect(10, 20, 2, 2);
+            sctx.fillRect(14, 20, 2, 2);
+            sctx.fillRect(18, 20, 2, 2);
+            sctx.fillRect(22, 20, 2, 2);
+            
+            return sprite;
+        }
+        
+        const enemySprite = createEnemySprite();
+        
+        // 创建金币精灵表
+        function createCoinSprite() {
+            const sprite = document.createElement('canvas');
+            sprite.width = 32 * 4; // 4帧动画
+            sprite.height = 32;
+            const sctx = sprite.getContext('2d');
+            
+            for (let frame = 0; frame < 4; frame++) {
+                const x = frame * 32;
+                
+                // 绘制金币
+                sctx.fillStyle = '#FFD166';
+                sctx.beginPath();
+                sctx.arc(x + 16, 16, 12, 0, Math.PI * 2);
+                sctx.fill();
+                
+                // 绘制金币反光
+                sctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                sctx.beginPath();
+                sctx.arc(x + 20, 12, 4, 0, Math.PI * 2);
+                sctx.fill();
+                
+                // 绘制金币边缘
+                sctx.strokeStyle = '#E6B800';
+                sctx.lineWidth = 2;
+                sctx.beginPath();
+                sctx.arc(x + 16, 16, 12, 0, Math.PI * 2);
+                sctx.stroke();
+            }
+            
+            return sprite;
+        }
+        
+        const coinSprite = createCoinSprite();
+        
+        // 初始化游戏
+        function initGame() {
+            // 重置游戏状态
+            game.started = true;
+            game.paused = false;
+            game.over = false;
+            game.score = 0;
+            game.lives = 3;
+            game.timeRemaining = 60;
+            
+            // 重置玩家位置
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            player.frame = 0;
+            player.direction = 0;
+            
+            // 清空敌人和金币数组
+            enemies.length = 0;
+            coins.length = 0;
+            
+            // 创建敌人
+            for (let i = 0; i < enemyCount; i++) {
+                createEnemy();
+            }
+            
+            // 创建金币
+            for (let i = 0; i < game.coinCount; i++) {
+                createCoin();
+            }
+            
+            // 隐藏开始界面
+            startScreen.classList.add('hidden');
+            pauseScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            // 开始游戏循环
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 创建敌人
+        function createEnemy() {
+            // 确保敌人不会生成在玩家附近
+            let x, y;
+            do {
+                x = Math.random() * (canvas.width - 32);
+                y = Math.random() * (canvas.height - 32);
+            } while (Math.abs(x - player.x) < 100 && Math.abs(y - player.y) < 100);
+            
+            enemies.push({
+                x: x,
+                y: y,
+                width: 32,
+                height: 32,
+                speed: 2 + Math.random() * 2,
+                dx: (Math.random() - 0.5) * 2,
+                dy: (Math.random() - 0.5) * 2,
+                frame: 0,
+                frameCount: 2,
+                frameDelay: 15,
+                frameTimer: 0
+            });
+        }
+        
+        // 创建金币
+        function createCoin() {
+            // 确保金币不会生成在玩家或敌人附近
+            let x, y;
+            let validPosition = false;
+            
+            while (!validPosition) {
+                x = Math.random() * (canvas.width - 32);
+                y = Math.random() * (canvas.height - 32);
+                validPosition = true;
+                
+                // 检查是否与玩家太近
+                if (Math.abs(x - player.x) < 50 && Math.abs(y - player.y) < 50) {
+                    validPosition = false;
+                    continue;
+                }
+                
+                // 检查是否与敌人太近
+                for (let i = 0; i < enemies.length; i++) {
+                    if (Math.abs(x - enemies[i].x) < 50 && Math.abs(y - enemies[i].y) < 50) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+                
+                // 检查是否与其他金币太近
+                for (let i = 0; i < coins.length; i++) {
+                    if (Math.abs(x - coins[i].x) < 40 && Math.abs(y - coins[i].y) < 40) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+            }
+            
+            coins.push({
+                x: x,
+                y: y,
+                width: 32,
+                height: 32,
+                frame: 0,
+                frameCount: 4,
+                frameDelay: 6,
+                frameTimer: 0,
+                collected: false,
+                collectTimer: 0
+            });
+        }
+        
+        // 开始游戏
+        function startGame() {
+            initGame();
+        }
+        
+        // 暂停游戏
+        function pauseGame() {
+            if (!game.over) {
+                game.paused = true;
+                pauseScreen.classList.remove('hidden');
+            }
+        }
+        
+        // 恢复游戏
+        function resumeGame() {
+            game.paused = false;
+            pauseScreen.classList.add('hidden');
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 重新开始游戏
+        function restartGame() {
+            initGame();
+        }
+        
+        // 退出游戏
+        function exitGame() {
+            game.started = false;
+            game.over = false;
+            game.paused = false;
+            startScreen.classList.remove('hidden');
+            pauseScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+        }
+        
+        // 游戏结束
+        function gameOver() {
+            game.over = true;
+            finalScoreElement.textContent = game.score;
+            gameOverScreen.classList.remove('hidden');
+        }
+        
+        // 检测碰撞
+        function checkCollision(a, b) {
+            return a.x < b.x + b.width &&
+                   a.x + a.width > b.x &&
+                   a.y < b.y + b.height &&
+                   a.y + a.height > b.y;
+        }
+        
+        // 更新游戏状态
+        function update(deltaTime) {
+            if (game.paused || game.over) return;
+            
+            // 更新时间
+            game.timeRemaining -= deltaTime / 1000;
+            if (game.timeRemaining <= 0) {
+                game.timeRemaining = 0;
+                gameOver();
+                return;
+            }
+            
+            // 更新玩家动画
+            player.frameTimer++;
+            if (player.frameTimer >= player.frameDelay) {
+                player.frameTimer = 0;
+                player.frame = (player.frame + 1) % player.frameCount;
+            }
+            
+            // 处理玩家移动
+            let moved = false;
+            if (keys.up) {
+                player.y -= player.speed;
+                player.direction = 2;
+                moved = true;
+            }
+            if (keys.down) {
+                player.y += player.speed;
+                player.direction = 0;
+                moved = true;
+            }
+            if (keys.left) {
+                player.x -= player.speed;
+                player.direction = 3;
+                moved = true;
+            }
+            if (keys.right) {
+                player.x += player.speed;
+                player.direction = 1;
+                moved = true;
+            }
+            
+            // 如果没有移动，重置动画帧
+            if (!moved) {
+                player.frame = 0;
+            }
+            
+            // 限制玩家在画布内
+            player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+            player.y = Math.max(0, Math.min(canvas.height - player.height, player.y));
+            
+            // 更新敌人
+            for (let i = 0; i < enemies.length; i++) {
+                const enemy = enemies[i];
+                
+                // 更新敌人动画
+                enemy.frameTimer++;
+                if (enemy.frameTimer >= enemy.frameDelay) {
+                    enemy.frameTimer = 0;
+                    enemy.frame = (enemy.frame + 1) % enemy.frameCount;
+                }
+                
+                // 移动敌人
+                enemy.x += enemy.dx * enemy.speed;
+                enemy.y += enemy.dy * enemy.speed;
+                
+                // 敌人碰到边界反弹
+                if (enemy.x <= 0 || enemy.x + enemy.width >= canvas.width) {
+                    enemy.dx = -enemy.dx;
+                }
+                if (enemy.y <= 0 || enemy.y + enemy.height >= canvas.height) {
+                    enemy.dy = -enemy.dy;
+                }
+                
+                // 检测玩家与敌人碰撞
+                if (checkCollision(player, enemy)) {
+                    // 玩家失去一条命
+                    game.lives--;
+                    
+                    if (game.lives <= 0) {
+                        gameOver();
+                        return;
+                    }
+                    
+                    // 重置玩家位置
+                    player.x = canvas.width / 2;
+                    player.y = canvas.height / 2;
+                    
+                    // 重置敌人位置
+                    for (let j = 0; j < enemies.length; j++) {
+                        enemies[j].x = Math.random() * (canvas.width - 32);
+                        enemies[j].y = Math.random() * (canvas.height - 32);
+                    }
+                    
+                    break;
+                }
+            }
+            
+            // 更新金币
+            for (let i = 0; i < coins.length; i++) {
+                const coin = coins[i];
+                
+                if (coin.collected) {
+                    coin.collectTimer++;
+                    if (coin.collectTimer > 30) {
+                        coins.splice(i, 1);
+                        i--;
+                        
+                        // 如果所有金币都被收集，创建新的金币
+                        if (coins.length === 0) {
+                            game.score += 100; // 额外奖励
+                            
+                            // 增加时间
+                            game.timeRemaining += 10;
+                            if (game.timeRemaining > 120) game.timeRemaining = 120;
+                            
+                            // 创建新的金币和敌人
+                            for (let j = 0; j < game.coinCount; j++) {
+                                createCoin();
+                            }
+                            
+                            // 增加难度
+                            if (enemies.length < 10) {
+                                createEnemy();
+                            }
+                        }
+                    }
+                    continue;
+                }
+                
+                // 更新金币动画
+                coin.frameTimer++;
+                if (coin.frameTimer >= coin.frameDelay) {
+                    coin.frameTimer = 0;
+                    coin.frame = (coin.frame + 1) % coin.frameCount;
+                }
+                
+                // 检测玩家与金币碰撞
+                if (checkCollision(player, coin)) {
+                    coin.collected = true;
+                    game.score += 10;
+                }
+            }
+        }
+        
+        // 渲染游戏
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#1A1C22';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制网格背景
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            
+            const gridSize = 32;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            // 绘制金币
+            for (let i = 0; i < coins.length; i++) {
+                const coin = coins[i];
+                
+                if (coin.collected) {
+                    // 金币收集动画
+                    ctx.globalAlpha = 1 - coin.collectTimer / 30;
+                    ctx.drawImage(coinSprite, coin.frame * 32, 0, 32, 32, coin.x, coin.y - coin.collectTimer, 32, 32);
+                    ctx.globalAlpha = 1;
+                } else {
+                    // 正常绘制金币
+                    ctx.drawImage(coinSprite, coin.frame * 32, 0, 32, 32, coin.x, coin.y, 32, 32);
+                }
+            }
+            
+            // 绘制敌人
+            for (let i = 0; i < enemies.length; i++) {
+                const enemy = enemies[i];
+                ctx.drawImage(enemySprite, enemy.x, enemy.y);
+            }
+            
+            // 绘制玩家
+            ctx.drawImage(
+                playerSprite, 
+                player.frame * player.width, 
+                player.direction * player.height, 
+                player.width, 
+                player.height, 
+                player.x, 
+                player.y, 
+                player.width, 
+                player.height
+            );
+            
+            // 绘制游戏UI
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, 40);
+            
+            // 绘制分数
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '16px "Press Start 2P"';
+            ctx.fillText(`SCORE: ${game.score}`, 20, 25);
+            
+            // 绘制剩余时间
+            ctx.fillText(`TIME: ${Math.ceil(game.timeRemaining)}`, 200, 25);
+            
+            // 绘制生命值
+            ctx.fillText(`LIVES: ${game.lives}`, 370, 25);
+            
+            // 绘制剩余金币
+            ctx.fillText(`COINS: ${coins.length}/${game.coinCount}`, 540, 25);
+        }
+        
+        // 游戏主循环
+        function gameLoop(timestamp) {
+            if (!game.lastTime) game.lastTime = timestamp;
+            const deltaTime = timestamp - game.lastTime;
+            game.lastTime = timestamp;
+            
+            update(deltaTime);
+            render();
+            
+            if (!game.paused && !game.over) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        // 键盘事件监听
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.up = true;
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = true;
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            
+            // 暂停/继续游戏
+            if (e.key === ' ') {
+                if (game.started && !game.over) {
+                    if (game.paused) {
+                        resumeGame();
+                    } else {
+                        pauseGame();
+                    }
+                }
+            }
+            
+            // 退出游戏
+            if (e.key === 'Escape') {
+                if (game.started) {
+                    exitGame();
+                }
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.up = false;
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = false;
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+        });
+        
+        // 调整画布大小以适应屏幕
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            // 保持16:10的宽高比
+            const aspectRatio = 800 / 500;
+            let newWidth, newHeight;
+            
+            if (containerWidth / containerHeight > aspectRatio) {
+                newHeight = containerHeight;
+                newWidth = newHeight * aspectRatio;
+            } else {
+                newWidth = containerWidth;
+                newHeight = newWidth / aspectRatio;
+            }
+            
+            canvas.style.width = `${newWidth}px`;
+            canvas.style.height = `${newHeight}px`;
+        }
+        
+        // 初始化时调整画布大小
+        resizeCanvas();
+        
+        // 窗口大小变化时调整画布大小
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>
